@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Built-By: sjt820sdc103
+Build-Jdk: 17.0.1
+Implementation-Title: First
+Implementation-Version: 0.0.1-SNAPSHOT
+Implementation-Vendor-Id: edu.app
+Implementation-URL: https://spring.io/projects/spring-boot/First
+Created-By: Maven Integration for Eclipse
+
