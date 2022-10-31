@@ -1,0 +1,401 @@
+package org.vtop.research.postgreSQL.controller;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.vtop.common.vtop.model.User;
+import org.vtop.research.model.ResearchDCMembers2RshDeanModel;
+import org.vtop.research.mongoDB.model.ResearchDCGuidePanel;
+import org.vtop.research.mongoDB.model.ResearchDCMemberOrder;
+import org.vtop.research.mongoDB.service.ResearchDCMemberOrderService;
+import org.vtop.research.mongoDB.service.ResearchDcGuidePanelService;
+import org.vtop.research.postgreSQL.model.ResearchDcGuidePanelLogModel;
+import org.vtop.research.postgreSQL.service.ResearchDcGuidePanelLogService;
+import org.vtop.research.postgreSQL.service.ResearchDcMemberOrderLogService;
+import org.vtop.research.service.ResearchDCMembers2RshDeanService;
+import org.vtop.research.service.ResearchProfileService;
+import org.vtop.services.admissions.Admissions;
+import org.vtop.services.hrms.CostCentres;
+import org.vtop.services.library.PhotoService;
+import org.vtop.services.vtop.ContextMapping;
+
+/**
+ * ResearchDcMemberOrderController Class for DcAutomation
+ * @author SaliniGopi
+ * @since 18-July-2022
+ * @version 1.0
+ */
+
+@Controller
+public class ResearchDcMemberOrderController 
+{
+	private static final Logger LOGGER = LogManager.getLogger(ResearchDcMemberOrderController.class);
+	private static final String [] CENTERS = {"SCHOOL", "CENTRE"};
+	private static final Integer [] STATUS = {0};
+	private static final String CAMPUS  = "VLR";
+	
+	@Autowired
+	private ResearchProfileService researchProfileService;
+
+	@Autowired
+	private ResearchDCMemberOrderService researchDCMemberOrderService;
+
+	@Autowired
+	private CostCentres costCentres;
+	
+	@Autowired
+	private Admissions admissions;
+	
+	@Autowired
+	private PhotoService photoService;
+	
+	@Autowired
+	private ResearchDcGuidePanelLogService researchDcGuidePanelLogService;
+	
+	@Autowired
+	private ResearchDcGuidePanelService researchDcGuidePanelService;
+	
+	@Autowired
+	private ResearchDcMemberOrderLogService researchDcMemberOrderLogService;
+	
+	@Autowired
+	private ResearchDCMembers2RshDeanService researchDCMembers2RshDeanService;
+	
+	@Autowired
+	private User user;
+	
+	/** To download external and internal members order Download
+	 * @author SaliniGopi
+	 * @param model
+	 * @param regNo
+	 * @param memberId
+	 * @param fileId
+	 * @param response
+	 * @return
+	 * @throws IOException
+	 */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/researchDcDocDownload",method={RequestMethod.GET}) 
+	public void downloadExternalMemberOne(Model model, String regNo, String memberId, HttpServletResponse response) throws IOException
+	{
+		try
+		{
+			ResearchDCMemberOrder researchDCMemberOrder = new ResearchDCMemberOrder();
+			
+			if (regNo != null && !regNo.isEmpty() && memberId != null && !memberId.isEmpty())
+			{
+				researchDCMemberOrder = Optional.ofNullable(researchDCMemberOrderService.getOne(regNo, Integer.parseInt(memberId))).orElse(null);
+				
+				if(researchDCMemberOrder != null)
+				{
+					response.setHeader("Expires", "0");
+					response.setHeader("Cache-Control","must-revalidate, post-check=0, pre-check=0");
+					response.setHeader("Pragma", "public");
+					response.setContentType(researchDCMemberOrder.getFileType());	
+					response.setHeader("Content-Disposition", "attachment; filename=\" " + researchDCMemberOrder.getFileName() + ".pdf\"");
+					response.getOutputStream().write(researchDCMemberOrder.getFileContent());
+					response.getOutputStream().flush();
+					response.getOutputStream().close();
+				}
+			}
+		} 
+		catch (NullPointerException nullPointerException)
+		{
+			LOGGER.trace("nullPointerException................." + nullPointerException .getMessage());
+		}
+		catch (Exception exception)
+		{
+			LOGGER.trace("exception................." + exception .getMessage());
+		}
+	}
+	
+	/** To download GudiePanel download
+	 * @author SaliniGopi
+	 * @param model
+	 * @param regNo
+	 * @param memberId
+	 * @param fileId
+	 * @param response
+	 * @return
+	 * @throws IOException
+	 */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/researchDcDocDownloadForGuidePanel",method={RequestMethod.GET}) 
+	public void downloadGudiePanel(Model model, String regNo, String orderType, HttpServletResponse response) 
+	{
+		try
+		{
+			ResearchDCGuidePanel researchDCGuidePanel = new ResearchDCGuidePanel();
+			
+			if (regNo != null && !regNo.isEmpty() && orderType != null && !orderType.isEmpty())
+			{
+				researchDCGuidePanel = Optional.ofNullable(researchDcGuidePanelService.getOne(regNo, Integer.parseInt(orderType))).orElse(null);
+				
+				if(researchDCGuidePanel != null)
+				{
+					response.setHeader("Expires", "0");
+					response.setHeader("Cache-Control","must-revalidate, post-check=0, pre-check=0");
+					response.setHeader("Pragma", "public");
+					response.setContentType(researchDCGuidePanel.getFileType());	
+					response.setHeader("Content-Disposition", "attachment; filename=\" " + researchDCGuidePanel.getFileName() + ".pdf\"");
+					response.getOutputStream().write(researchDCGuidePanel.getFileContent());
+					response.getOutputStream().flush();
+					response.getOutputStream().close();
+				}
+			}
+		} 
+		catch (NullPointerException nullPointerException)
+		{
+			LOGGER.trace("nullPointerException...." + nullPointerException .getMessage());
+		}
+		catch (Exception exception)
+		{
+			LOGGER.trace("exception..." + exception .getMessage());
+		}
+	}
+	
+/**
+ * for loading search by RegNo
+ * @param model
+ * @param regNo
+ * @return
+ * @throws SQLException
+ */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/getResearchDcAutomationSearch", method={RequestMethod.POST}) 
+	public String getResearchScholarInfoBySearch(Model model, String regNo,HttpServletResponse response)  
+	{
+		model.addAttribute("costCentreList", costCentres.getCostCentreCampusCentreStatus(CAMPUS, CENTERS, STATUS));
+		model.addAttribute("researchProfileView", researchProfileService.getByregNO(regNo)); //LOG
+		List<Object[]> researchDcMembers = researchProfileService.getApprovedDCMembers(regNo); //POSTGRES
+		List<ResearchDcGuidePanelLogModel> guidePanelLog = researchDcGuidePanelLogService.findByResearchDcGuidePanelLogPKStdntslgndtlsRegisterNumberOrderByResearchDcGuidePanelLogPKOrderTypeAsc(regNo);//guidepanelservice
+		String guideDetails=researchDcGuidePanelLogService.mailSendGuideDetails(regNo);
+		
+		List<ResearchDCGuidePanel> guidePanelDocument = researchDcGuidePanelService.findByRegisterNumber(regNo);
+		Collections.sort(guidePanelDocument);
+		Map<Integer, ResearchDCGuidePanel> guidePanelMap = guidePanelDocument.stream().collect(Collectors.toMap(ResearchDCGuidePanel::getOrderType, Function.identity()));
+		List<ResearchDCMemberOrder> memberOrderDocuments = researchDCMemberOrderService.findByRegisterNumber(regNo);
+		Collections.sort(memberOrderDocuments);
+		Map<Integer, ResearchDCMemberOrder> memberOrderMap =  memberOrderDocuments.stream().collect(Collectors.toMap(ResearchDCMemberOrder::getMemberId, Function.identity()));
+		
+		model.addAttribute("memberOrder", researchDcMembers);
+		model.addAttribute("guideDetails", guideDetails);
+		model.addAttribute("memberOrderDocuments", new TreeMap<>(memberOrderMap));
+		model.addAttribute("guidePanelDocuments", new TreeMap<>(guidePanelMap));
+		model.addAttribute("guidePanelLog", guidePanelLog);
+
+		try
+		{
+			if(researchProfileService.getByregNO(regNo)!=null && !regNo.trim().isEmpty())
+			{
+				if((researchProfileService.findByCostCenterID(researchProfileService.getByregNO(regNo).getCentreId()))!=null)
+				{
+					model.addAttribute("researchProfileSchoolView", researchProfileService.findByCostCenterID(researchProfileService.getByregNO(regNo).getCentreId()));
+					model.addAttribute("studGender", admissions.findOneByRegNo(regNo).getStudentBase().getGender());
+					model.addAttribute("internalGuideNameEmpID", researchProfileService.findByEmpIdCostCentreDispRegNO(regNo));
+
+					if(photoService.getPhotoByRegNo(regNo)!= null)
+					{
+						model.addAttribute("studentPhoto", Base64.getEncoder().encodeToString(photoService.getPhotoByRegNo(regNo)));
+					}
+				}
+			}
+		}
+		catch (NullPointerException nullPointerException)
+		{
+			LOGGER.trace("exception..." + nullPointerException.getMessage());
+		} 
+		catch (Exception exception)
+		{
+			LOGGER.catching(exception);
+		}
+		return "research/DcAutomation/DcMailDownload :: studentInfosection";
+	}
+	
+	/**
+	 * Description: Search Method for DcReplacement
+	 * @author SaliniGopi
+	 * @param model
+	 * @param regNo
+	 * @param response
+	 * @return
+	 * @throws SQLException
+	 */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/getDcMemberReplacement",method={RequestMethod.GET,RequestMethod.POST})
+	public String dcMemberReplacement (Model model, String regNo,HttpServletResponse response) 
+	{
+		model.addAttribute("costCentreList", costCentres.getCostCentreCampusCentreStatus(CAMPUS, CENTERS, STATUS));
+		model.addAttribute("researchProfileView", researchProfileService.getByregNO(regNo)); //LOG
+		try
+		{
+			if(researchProfileService.getByregNO(regNo)!=null && !regNo.trim().isEmpty())
+			{
+				if((researchProfileService.findByCostCenterID(researchProfileService.getByregNO(regNo).getCentreId()))!=null)
+				{
+					model.addAttribute("researchProfileSchoolView", researchProfileService.findByCostCenterID(researchProfileService.getByregNO(regNo).getCentreId()));
+					model.addAttribute("studGender", admissions.findOneByRegNo(regNo).getStudentBase().getGender());
+
+					if(photoService.getPhotoByRegNo(regNo)!= null)
+					{
+						
+						model.addAttribute("studentPhoto", Base64.getEncoder().encodeToString(photoService.getPhotoByRegNo(regNo)));
+					}
+				}
+			}
+				model.addAttribute("info", "Research profile not found for this register number [ " + regNo + " ]");
+		}
+		catch (NullPointerException nullPointerException)
+		{
+			LOGGER.trace("exception..." + nullPointerException.getMessage());
+		} 
+		catch (Exception exception)
+		{
+			LOGGER.catching(exception);
+		}
+		return "research/DcAutomation/DcMemberReplacement :: studentInfosection";
+	} 
+	
+	@PostMapping("research/dcMemberReplacement")
+	public String dcMemberReplaceMent(HttpSession session, Model model) 
+	{
+		model.addAttribute("flag", 1);
+		return "research/DcAutomation/DcMemberReplacement";
+	}
+	
+	/**
+	 * Description: DcMemberReplacement for Existing Member Details and Remaining Members Details
+	 * @author SaliniGopi
+	 * @param model
+	 * @param regNo
+	 * @param memberType
+	 * @param response
+	 * @return
+	 */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/getMemberDetails",method={RequestMethod.GET,RequestMethod.POST})
+	public String getMemberDetails (Model model, String regNo, String memberType, HttpServletResponse response) 
+	{
+		try 
+		{
+			if(regNo != null && !regNo.isEmpty() && memberType != null && !memberType.isEmpty())
+			{
+				List<Object[]> overAllDcMembersList  = researchDcGuidePanelLogService.overAllDcMembersDetails(regNo, memberType);
+				List<Object[]> selectedDcMembersDetails  = researchDcGuidePanelLogService.selectedDcMembersDetails(regNo, memberType);
+				
+				model.addAttribute("membersExist", selectedDcMembersDetails);
+				model.addAttribute("remainingMembers", overAllDcMembersList);
+			}
+		}
+		catch (NullPointerException nullPointerException)
+		{
+			LOGGER.trace("NullPointerException..." + nullPointerException.getMessage());
+		} 
+		catch (Exception exception)
+		{
+			LOGGER.trace(exception.getMessage());
+		}
+		return "research/DcAutomation/DcMemberReplacement :: memberDetails";
+	}
+	
+	/**
+	 * Description: DcMemberReplacement for External and Internal members
+	 * @author SaliniGopi
+	 * @param model
+	 * @param searchStudent
+	 * @param category
+	 * @param existingMembers
+	 * @param remainingMembers
+	 * @param response
+	 * @return
+	 */
+	@ContextMapping(allowed = {"RESEARCH DEAN ADMIN"})
+	@RequestMapping(value="research/updateMemberDetails",method={RequestMethod.GET,RequestMethod.POST})
+	public String updateMemberDetails (Model model, String searchStudent, String category, String existingMembers, String remainingMembers, HttpServletResponse response) 
+	{
+		try 
+		{
+			if(searchStudent != null && !searchStudent.isEmpty())
+			{
+				if(category != null && !category.isEmpty())
+				{
+					if(existingMembers != null && !existingMembers.isEmpty())
+					{
+						if(remainingMembers != null && !remainingMembers.isEmpty())
+						{							
+							researchDcMemberOrderLogService.updateApprovedStatusForExistingMembers(searchStudent, Integer.parseInt(existingMembers));
+							researchDcMemberOrderLogService.updateApprovedStatusAPP(searchStudent, Integer.parseInt(remainingMembers));
+							ResearchDCMembers2RshDeanModel researchDCMembers2RshDeanModel = researchDCMembers2RshDeanService.getOne(searchStudent);
+							
+							if(researchDCMembers2RshDeanModel != null)
+							{
+								researchDCMembers2RshDeanModel.setRshDeanIpaddress(user.getIPAddress());
+								researchDCMembers2RshDeanModel.setRshDeanTimestamp(new Date());
+								researchDCMembers2RshDeanModel.setRshDeanUserId(user.getUserDetails().getUserId());
+								researchDCMembers2RshDeanService.save(researchDCMembers2RshDeanModel);
+							}
+							
+							researchDcMemberOrderLogService.generateAndSaveResearchDcLetter(searchStudent, Arrays.asList(Integer.parseInt(remainingMembers)), 
+									Integer.parseInt(existingMembers), user.getUserDetails().getUserId(), user.getIPAddress());
+						}
+						else
+						{
+							response.setHeader("error", "New member may not be empty!");
+						}
+					}
+					else
+					{
+						response.setHeader("error", "Existing member may not be empty!");
+					}
+				}
+				else
+				{
+					response.setHeader("error", "Category may not be empty!");
+				}
+			}
+			else
+			{
+				response.setHeader("error", "Register number may not be empty!");
+			}
+		}
+		catch (Exception exception) 
+		{
+			response.setHeader("error", remainingMembers);
+			LOGGER.trace(exception.getMessage());
+		}
+		model.addAttribute("flag", 1);
+		return "research/DcAutomation/DcMemberReplacement :: memberDetails";
+	}
+	
+	/** DC download page
+	 * @author SaliniGopi
+	 * @param session
+	 * @param model
+	 * @return
+	 */
+	
+	@PostMapping("research/dcMailDownload")
+	public String dcMailDownload(HttpSession session, Model model) 
+	{
+		model.addAttribute("flag", 1);
+		return "research/DcAutomation/DcMailDownload";
+	}
+}
